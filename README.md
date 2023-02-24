@@ -1,7 +1,7 @@
 # SMS2Telegram
 
-Barebone background service that forwards your incoming new SMS (text message) into a chat with a telegram bot.
-This program does not connect to any intermediate server, it simply issues a new request to telegram bot API each time the phone gets a new SMS.
+Barebone background service that forwards your incoming new SMS (text message) and incoming call phone number into a chat with a telegram bot.
+This program does not connect to any intermediate server, it simply issues a new request to telegram bot API each time the phone gets a new SMS or call.
 
 
 ## Supported System
@@ -11,7 +11,7 @@ Only tested on
 1. Oneplus 5T on Android 10 (dual SIM)
 2. Oneplus 7t on Android 11 (dual SIM)
 3. Pixel 3 on Android 11
-
+4. Moto Z Play (dual SIM)
 
 ## Configuration
 

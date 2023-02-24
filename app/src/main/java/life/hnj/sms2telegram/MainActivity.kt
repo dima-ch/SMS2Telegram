@@ -1,6 +1,7 @@
 package life.hnj.sms2telegram
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -9,11 +10,10 @@ import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.Toast
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.appcompat.widget.Toolbar
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -26,30 +26,47 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "se
 
 class MainActivity : AppCompatActivity() {
     val TAG = "MainActivity"
-    override fun onCreate(savedInstanceState: Bundle?) {
-        val requestPermissionLauncher =
-            registerForActivityResult(
-                ActivityResultContracts.RequestPermission()
-            ) { isGranted: Boolean ->
-                if (isGranted) {
-                    // Permission is granted. Continue the action or workflow in your
-                    // app.
+    val REQUEST_CODE = 101
+    var PERMISSIONS = arrayOf(
+        Manifest.permission.RECEIVE_SMS,
+        Manifest.permission.READ_PHONE_STATE,
+        Manifest.permission.READ_CALL_LOG,
+        Manifest.permission.READ_CONTACTS
+    )
+
+    private fun checkMultiplePermissions(permissions: Array<String>): Boolean {
+        for (permission in permissions) {
+            if (ContextCompat.checkSelfPermission(applicationContext, permission) != PackageManager.PERMISSION_GRANTED) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun requestPermissions(activity: Activity,permissions: Array<String> ) {
+        ActivityCompat.requestPermissions(activity, permissions, REQUEST_CODE)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        when (requestCode) {
+            REQUEST_CODE -> {
+                if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
                 } else {
-                    // Explain to the user that the feature is unavailable because the
-                    // features requires a permission that the user has denied. At the
-                    // same time, respect the user's decision. Don't link to system
-                    // settings in an effort to convince the user to change their
-                    // decision.
                     Toast.makeText(
                         applicationContext,
-                        "SMS2Telegram needs SMS read permission",
+                        "SMS2Telegram needs permission",
                         Toast.LENGTH_LONG
                     ).show()
                     this.finishAffinity()
                 }
             }
+            else -> {
+                super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+            }
+        }
+    }
 
-
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         setSupportActionBar(findViewById(R.id.action_bar))
@@ -62,14 +79,18 @@ class MainActivity : AppCompatActivity() {
             applicationContext, SMSHandleForegroundService::class.java
         )
         if (sync2TgEnabled) {
-            checkPermission(Manifest.permission.RECEIVE_SMS, requestPermissionLauncher)
+            if(!checkMultiplePermissions(PERMISSIONS)){
+                requestPermissions(this, PERMISSIONS)
+            }
             startSMSService(serviceIntent)
         }
         toggle.isChecked = sync2TgEnabled
         toggle.setOnCheckedChangeListener { _, isChecked ->
             runBlocking { setSync2TgEnabled(sync2TgEnabledKey, isChecked) }
             if (isChecked) {
-                checkPermission(Manifest.permission.RECEIVE_SMS, requestPermissionLauncher)
+                if(!checkMultiplePermissions(PERMISSIONS)){
+                    requestPermissions(this, PERMISSIONS)
+                }
                 startSMSService(serviceIntent)
             } else {
                 applicationContext.stopService(serviceIntent)
@@ -96,21 +117,6 @@ class MainActivity : AppCompatActivity() {
     ) {
         applicationContext.dataStore.edit { settings ->
             settings[sync2TgEnabledKey] = value
-        }
-    }
-
-    private fun checkPermission(
-        perm: String,
-        requestPermissionLauncher: ActivityResultLauncher<String>
-    ) {
-        if (ContextCompat.checkSelfPermission(
-                applicationContext, perm
-            ) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            // You can directly ask for the permission.
-            // The registered ActivityResultCallback gets the result of this request.
-            requestPermissionLauncher.launch(perm)
         }
     }
 

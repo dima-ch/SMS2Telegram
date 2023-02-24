@@ -36,6 +36,13 @@ class SMSHandleForegroundService : Service() {
             Manifest.permission.BROADCAST_SMS,
             null
         )
+
+        registerReceiver(
+            receiver,
+            IntentFilter("android.intent.action.PHONE_STATE")
+        )
+
+
         // Restart when closed
         return START_STICKY
     }

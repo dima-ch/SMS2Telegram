@@ -18,7 +18,6 @@ import life.hnj.sms2telegram.getBooleanVal
 import life.hnj.sms2telegram.sync2TelegramKey
 import kotlin.math.max
 
-
 private const val TAG = "SMSHandler"
 
 class SMSReceiver : BroadcastReceiver() {
@@ -30,44 +29,62 @@ class SMSReceiver : BroadcastReceiver() {
             Log.d(TAG, "sync2TgEnabled is false, returning")
             return
         }
-
-        Log.d(TAG, "sync2TgEnabled, and received new sms")
-        // This method is called when the BroadcastReceiver is receiving an Intent broadcast.
-        val bundle = intent.extras
-        val format = bundle?.getString("format")
-        val pdus = bundle!!["pdus"] as Array<*>?
-        val simIndex =
-            max(bundle.getInt("phone", -1), bundle.getInt("android.telephony.extra.SLOT_INDEX", -1))
-        Log.d(TAG, bundle.toString())
         val store = PreferenceManager.getDefaultSharedPreferences(context)
-        val phoneNum = when (simIndex) {
-            0 -> store.getString("sim0_number", "Please configure phone number in settings")
-            1 -> store.getString("sim1_number", "Please configure phone number in settings")
-            else -> "Unsupported feature (please contact the developer)"
-        }
 
-        if (pdus != null) {
-            val msgs: List<SmsMessage?> =
-                pdus.map { i -> SmsMessage.createFromPdu(i as ByteArray, format) }
-            val fromAddrToMsgBody = HashMap<String, String>()
-            for (msg in msgs) {
-                val fromAddr = msg?.originatingAddress!!
-                fromAddrToMsgBody[fromAddr] =
-                    fromAddrToMsgBody.getOrDefault(fromAddr, "") + msg.messageBody
+        if (intent.action.equals("android.provider.Telephony.SMS_RECEIVED")) {
+            Log.d(TAG, "sync2TgEnabled, and received new sms")
+            // This method is called when the BroadcastReceiver is receiving an Intent broadcast.
+            val bundle = intent.extras
+            val format = bundle?.getString("format")
+            val pdus = bundle!!["pdus"] as Array<*>?
+            val simIndex =
+                max(
+                    bundle.getInt("phone", -1),
+                    bundle.getInt("android.telephony.extra.SLOT_INDEX", -1)
+                )
+            Log.d(TAG, bundle.toString())
+            val phoneNum = when (simIndex) {
+                0 -> store.getString("sim0_number", "Please configure phone number in settings")
+                1 -> store.getString("sim1_number", "Please configure phone number in settings")
+                else -> "Unsupported feature (please contact the developer)"
             }
 
-            for (entry in fromAddrToMsgBody) {
-                // Build the message to show.
-                val strMessage = """
-                    New SMS from ${entry.key}
-                    to $phoneNum
-                    
-                    ${entry.value}
-                """.trimIndent()
+            if (pdus != null) {
+                val msgs: List<SmsMessage?> =
+                    pdus.map { i -> SmsMessage.createFromPdu(i as ByteArray, format) }
+                val fromAddrToMsgBody = HashMap<String, String>()
+                for (msg in msgs) {
+                    val fromAddr = msg?.originatingAddress!!
+                    fromAddrToMsgBody[fromAddr] =
+                        fromAddrToMsgBody.getOrDefault(fromAddr, "") + msg.messageBody
+                }
 
-                Log.d(TAG, "onReceive: $strMessage")
+                for (entry in fromAddrToMsgBody) {
+                    // Build the message to show.
+                    val strMessage = """
+                        New SMS from ${entry.key}
+                        to $phoneNum
+                        
+                        ${entry.value}
+                    """.trimIndent()
 
-                sync2Telegram(store, context, strMessage)
+                    Log.d(TAG, "onReceive: $strMessage")
+
+                    sync2Telegram(store, context, strMessage)
+                }
+            }
+        } else if (intent.action.equals("android.intent.action.PHONE_STATE")) {
+            if (intent.extras?.get("state")?.equals("RINGING") == true) {
+                if (intent.extras?.get("incoming_number") != null) {
+                    Log.d(TAG, "sync2TgEnabled, and received new call")
+                    val strMessage = """
+                        New CALL from ${intent.extras?.get("incoming_number")}
+                    """.trimIndent()
+
+                    Log.d(TAG, "onReceive: $strMessage")
+
+                    sync2Telegram(store, context, strMessage)
+                }
             }
         }
     }
